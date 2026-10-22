@@ -1,0 +1,32 @@
+[package]
+name = "knot-lab"
+version = "0.1.0"
+description = "Draw a knot diagram and read off its invariants"
+authors = ["Zichen Wang"]
+license = ""
+repository = ""
+edition = "2024"
+rust-version = "1.90"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "knot_lab_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.1", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.12.1", features = [] }
+tauri-plugin-log = "2"
+# Only the fallback: the dialogs are the KDE one, run by src/picker.rs. Where kdialog
+# is missing this goes through the desktop portal rather than the toolkit's own chooser.
+tauri-plugin-dialog = { version = "2", default-features = false, features = ["xdg-portal"] }
+tauri-plugin-fs = "2"
+# 23.P: phone photos (see handoff.rs)
+libc = "0.2"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }

@@ -1,0 +1,53 @@
+:root {
+  --page: oklch(0.968 0.003 255);
+  --stage: oklch(0.996 0.001 255);
+  --ink: oklch(0.22 0.012 255);
+  --muted: oklch(0.49 0.012 255);
+  --faint: oklch(0.73 0.008 255);
+  --line: oklch(0.895 0.004 255);
+  --wash: oklch(0.935 0.004 255);
+  --lab-l: 0.6;
+  --lab-l2: 0.47;
+  --lab-c: 0.17;
+  --ui: 'Instrument Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --math: 'STIX Two Text', 'Songti SC', 'Noto Serif CJK SC', 'Times New Roman', serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --page: oklch(0.175 0.005 255);
+    --stage: oklch(0.215 0.006 255);
+    --ink: oklch(0.94 0.004 255);
+    --muted: oklch(0.69 0.01 255);
+    --faint: oklch(0.46 0.008 255);
+    --line: oklch(0.3 0.006 255);
+    --wash: oklch(0.27 0.006 255);
+    --lab-l: 0.74;
+    --lab-l2: 0.86;
+    --lab-c: 0.14;
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --page: oklch(0.175 0.005 255);
+  --stage: oklch(0.215 0.006 255);
+  --ink: oklch(0.94 0.004 255);
+  --muted: oklch(0.69 0.01 255);
+  --faint: oklch(0.46 0.008 255);
+  --line: oklch(0.3 0.006 255);
+  --wash: oklch(0.27 0.006 255);
+  --lab-l: 0.74;
+  --lab-l2: 0.86;
+  --lab-c: 0.14;
+  color-scheme: dark;
+}
+.paper {
+  --stage: oklch(0.996 0.001 255);
+  --ink: oklch(0.22 0.012 255);
+  --muted: oklch(0.49 0.012 255);
+  --faint: oklch(0.73 0.008 255);
+  --line: oklch(0.895 0.004 255);
+  --wash: oklch(0.935 0.004 255);
+  --lab-l: 0.6;
+  --lab-l2: 0.47;
+  --lab-c: 0.17;
+}

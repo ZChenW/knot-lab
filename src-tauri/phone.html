@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="__LANG__">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>__TITLE__</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root { color-scheme: light dark; --paper: #fff; --ink: #1c1c1c; --soft: #707070; --hair: #e7e7e7; --blue: #1f4fd8; --bad: #b3261e; --wash: #f6f7f9; }
+    @media (prefers-color-scheme: dark) { :root { --paper: #18191c; --ink: #f0f0f2; --soft: #ababaf; --hair: #36373d; --blue: #91b2ff; --bad: #ff9991; --wash: #222329; } }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { height: 100%; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.6 system-ui, "Noto Sans CJK SC", "PingFang SC", sans-serif; -webkit-tap-highlight-color: transparent; }
+    main { height: 100%; max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom)); }
+    h1 { font-size: 15px; font-weight: 600; margin: 0; }
+    p { margin: 0; color: var(--soft); }
+    button, label.pick { font: inherit; border: 0; border-radius: 10px; min-height: 52px; padding: 0 18px; display: grid; place-items: center; text-align: center; background: var(--wash); color: var(--ink); cursor: pointer; }
+    .primary { background: var(--ink) !important; color: var(--paper) !important; font-weight: 600; }
+    button:focus-visible, label:focus-within { outline: 2px solid var(--blue); outline-offset: 3px; }
+    button:disabled { opacity: .45; }
+    input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .status { min-height: 1.6em; color: var(--ink); text-align: center; font-size: 15px; }
+    .status.error { color: var(--bad); }
+
+    #pick .lead { margin: auto 0; padding: 24px 0; }
+    #pick .lead p { font-size: 26px; line-height: 1.35; color: var(--ink); max-width: 14em; text-wrap: balance; }
+    #pick .choices { display: grid; gap: 10px; }
+    #pick .status { margin-top: 14px; }
+    body.busy label.pick { opacity: .45; pointer-events: none; }
+
+    #adjust { gap: 14px; }
+    #adjust .tip { text-align: center; font-size: 15px; }
+    #frame { flex: 1; min-height: 0; display: grid; place-items: center; }
+    #stage { position: relative; touch-action: none; user-select: none; -webkit-user-select: none; }
+    #view { display: block; width: 100%; height: 100%; border-radius: 2px; }
+    #shade { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+    #hole { position: absolute; box-shadow: 0 0 0 200vmax rgb(0 0 0 / .55); }
+    #crop { position: absolute; border: 1.5px solid #fff; cursor: move; }
+    #crop i { position: absolute; width: 48px; height: 48px; margin: -24px; }
+    #crop i::after { content: ""; position: absolute; inset: 15px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgb(0 0 0 / .5); }
+    #crop [data-corner="nw"] { left: 0; top: 0; } #crop [data-corner="ne"] { left: 100%; top: 0; }
+    #crop [data-corner="sw"] { left: 0; top: 100%; } #crop [data-corner="se"] { left: 100%; top: 100%; }
+    .bar { display: grid; grid-template-columns: auto auto 1fr; gap: 10px; }
+  </style>
+</head>
+<body>
+  <main id="pick">
+    <h1>__TITLE__</h1>
+    <div class="lead"><p>__HINT__</p></div>
+    <div class="choices">
+      <label class="pick primary">__CAMERA__<input id="camera" type="file" accept="image/*" capture="environment"></label>
+      <label class="pick">__LIBRARY__<input id="library" type="file" accept="image/*"></label>
+    </div>
+    <p class="status" role="status"></p>
+  </main>
+  <main id="adjust" hidden>
+    <p class="tip">__ADJUST__</p>
+    <div id="frame">
+      <div id="stage">
+        <canvas id="view"></canvas>
+        <div id="shade"><div id="hole"></div></div>
+        <div id="crop"><i data-corner="nw"></i><i data-corner="ne"></i><i data-corner="sw"></i><i data-corner="se"></i></div>
+      </div>
+    </div>
+    <p class="status" role="status"></p>
+    <div class="bar">
+      <button id="change" type="button">__CHANGE__</button>
+      <button id="rotate" type="button">__ROTATE__</button>
+      <button id="send" type="button" class="primary">__SEND__</button>
+    </div>
+  </main>
+  <script>
+    const TEXT = __TEXT__;
+    const $ = (id) => document.getElementById(id);
+    const failures = { 404: 'expired', 413: 'too_large', 415: 'unsupported', 429: 'busy' };
+    const LONG_SIDE = 2400, SMALLEST = .08;
+    const view = $('view'), stage = $('stage'), box = $('crop'), hole = $('hole');
+    let crop, drag = null;
+    function say(key, error = false) {
+      for (const node of document.querySelectorAll('.status')) { node.textContent = key ? TEXT[key] : ''; node.classList.toggle('error', error); }
+    }
+    function show(adjusting) { $('pick').hidden = adjusting; $('adjust').hidden = !adjusting; if (adjusting) fit(); }
+    function busy(on) {
+      document.body.classList.toggle('busy', on);
+      for (const node of document.querySelectorAll('button')) node.disabled = on;
+    }
+    async function upload(body) {
+      busy(true); say('sending');
+      try {
+        const response = await fetch(location.pathname, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body });
+        if (!response.ok) { say(failures[response.status] || 'failed', true); return; }
+        show(false); say('sent');
+      } catch { say('failed', true); }
+      finally { busy(false); }
+    }
+    function place() {
+      for (const node of [hole, box]) {
+        node.style.left = `${crop.x0 * 100}%`; node.style.top = `${crop.y0 * 100}%`;
+        node.style.width = `${(crop.x1 - crop.x0) * 100}%`; node.style.height = `${(crop.y1 - crop.y0) * 100}%`;
+      }
+    }
+    function fit() {
+      if ($('adjust').hidden) return;
+      const frame = $('frame').getBoundingClientRect(), scale = Math.min(frame.width / view.width, frame.height / view.height);
+      stage.style.width = `${view.width * scale}px`; stage.style.height = `${view.height * scale}px`;
+      place();
+    }
+    async function open(event) {
+      const file = event.currentTarget.files[0];
+      event.currentTarget.value = '';
+      if (!file) return;
+      say('');
+      let bitmap;
+      // A format this browser cannot decode goes up as it is; the computer decides.
+      try { bitmap = await createImageBitmap(file); } catch { upload(file); return; }
+      // Enough pixels to crop a diagram out of a full page and still trace it sharply.
+      const scale = Math.min(1, 2400 / Math.max(bitmap.width, bitmap.height));
+      view.width = Math.max(1, Math.round(bitmap.width * scale)); view.height = Math.max(1, Math.round(bitmap.height * scale));
+      view.getContext('2d').drawImage(bitmap, 0, 0, view.width, view.height); bitmap.close();
+      crop = { x0: 0, y0: 0, x1: 1, y1: 1 };
+      show(true);
+    }
+    function rotate() {
+      const turned = document.createElement('canvas'); turned.width = view.height; turned.height = view.width;
+      const context = turned.getContext('2d'); context.translate(turned.width, 0); context.rotate(Math.PI / 2); context.drawImage(view, 0, 0);
+      view.width = turned.width; view.height = turned.height; view.getContext('2d').drawImage(turned, 0, 0);
+      crop = { x0: 1 - crop.y1, y0: crop.x0, x1: 1 - crop.y0, y1: crop.x1 };
+      fit();
+    }
+    function send() {
+      const sx = Math.round(crop.x0 * view.width), sy = Math.round(crop.y0 * view.height);
+      const sw = Math.max(1, Math.round((crop.x1 - crop.x0) * view.width)), sh = Math.max(1, Math.round((crop.y1 - crop.y0) * view.height));
+      const scale = Math.min(1, LONG_SIDE / Math.max(sw, sh)), out = document.createElement('canvas');
+      out.width = Math.max(1, Math.round(sw * scale)); out.height = Math.max(1, Math.round(sh * scale));
+      const context = out.getContext('2d'); context.fillStyle = '#fff'; context.fillRect(0, 0, out.width, out.height);
+      context.drawImage(view, sx, sy, sw, sh, 0, 0, out.width, out.height);
+      out.toBlob((blob) => { if (blob) upload(blob); else say('failed', true); }, 'image/jpeg', .92);
+    }
+    const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
+    box.addEventListener('pointerdown', (event) => {
+      const rect = stage.getBoundingClientRect();
+      drag = { corner: event.target.dataset.corner || '', x: event.clientX, y: event.clientY, from: { ...crop }, width: rect.width, height: rect.height };
+      box.setPointerCapture(event.pointerId); event.preventDefault();
+    });
+    box.addEventListener('pointermove', (event) => {
+      if (!drag) return;
+      const dx = (event.clientX - drag.x) / drag.width, dy = (event.clientY - drag.y) / drag.height, next = { ...drag.from };
+      if (!drag.corner) {
+        const width = next.x1 - next.x0, height = next.y1 - next.y0;
+        next.x0 = clamp(next.x0 + dx, 0, 1 - width); next.x1 = next.x0 + width;
+        next.y0 = clamp(next.y0 + dy, 0, 1 - height); next.y1 = next.y0 + height;
+      } else {
+        if (drag.corner.includes('w')) next.x0 = clamp(next.x0 + dx, 0, next.x1 - SMALLEST); else next.x1 = clamp(next.x1 + dx, next.x0 + SMALLEST, 1);
+        if (drag.corner.includes('n')) next.y0 = clamp(next.y0 + dy, 0, next.y1 - SMALLEST); else next.y1 = clamp(next.y1 + dy, next.y0 + SMALLEST, 1);
+      }
+      crop = next; place();
+    });
+    for (const type of ['pointerup', 'pointercancel']) box.addEventListener(type, () => { drag = null; });
+    for (const input of document.querySelectorAll('input')) input.addEventListener('change', open);
+    $('rotate').addEventListener('click', rotate);
+    $('send').addEventListener('click', send);
+    $('change').addEventListener('click', () => { show(false); say(''); });
+    window.addEventListener('resize', fit);
+  </script>
+</body>
+</html>
